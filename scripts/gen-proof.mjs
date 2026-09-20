@@ -18,7 +18,8 @@ async function main() {
   const agentId = "42";
   const balance = "1000000000";
   const spendCap = "500000000";
-  const pathIndices = "0";
+  const leafIndex = 5n; // non-zero registry member; Num2Bits reads this LSB-first
+  const pathIndices = leafIndex.toString();
   const pathElements = Array.from({ length: 20 }, () => rnd().toString());
 
   // 1. helper circuit -> matching registryRoot + nullifierHash
