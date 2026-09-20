@@ -93,6 +93,26 @@ proves : publicKey = Poseidon2(privateKey, 0)
 ```
 ~9.6k constraints · 4 public inputs · proves in well under a second client-side.
 
+### Registry Merkle tree convention
+
+The registry tree is a zero-based binary Merkle tree. Level 0 contains identity
+commitment leaves; each higher level contains their parents. A member proof
+contains the sibling at every level, ordered **leaf level upward**.
+
+`pathIndices` is **not** a constant or a separate bit array. The circuit feeds it
+to `Num2Bits(levels)`, so it must be the member's zero-based leaf index encoded
+as one integer. Bit 0 is the leaf-level direction, bit 1 is the next level, and
+so on; `1` means the current node is the right child. For example, leaf index
+`5` is binary `101`, so its first three directions are right, left, right.
+
+SDK integrations should use `merkleWitnessFromRegistryProof({ leafIndex,
+pathElements })` when the registry already returns siblings, or
+`merkleWitnessFromTreeLevels(treeLevels, leafIndex)` when they have the concrete
+tree levels. Both paths validate the leaf range and sibling count before the
+witness reaches snarkjs. The smoke/proof examples intentionally use a non-zero
+leaf index so the right-branch path is exercised rather than silently relying on
+the old all-left-only witness.
+
 ## Status
 
 - [x] **Phase 0** — circuit compiles, Groth16 trusted setup, **proof generated & verified off-chain** ✅
