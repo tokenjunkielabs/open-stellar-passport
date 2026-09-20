@@ -50,10 +50,12 @@ async function main() {
         .map((b) => b.toString(16).padStart(2, "0"))
         .join(""),
   ).toString();
+  const leafIndex = 5n; // non-zero registry member; direction bits are LSB-first
+  const pathIndices = leafIndex.toString();
   const pathElements = Array.from({ length: 20 }, rnd);
   const o = { type: "mem" };
   await snarkjs.wtns.calculate(
-    { privateKey, agentId, pathElements, pathIndices: "0" },
+    { privateKey, agentId, pathElements, pathIndices },
     read("passport_witness_js/passport_witness.wasm"),
     o,
   );
@@ -68,7 +70,7 @@ async function main() {
       privateKey,
       balance: "1000000000",
       pathElements,
-      pathIndices: "0",
+      pathIndices,
     },
     read("agent_passport_js/agent_passport.wasm"),
     read("agent_passport_final.zkey"),
