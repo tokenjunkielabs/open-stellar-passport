@@ -8,7 +8,12 @@
 import { Keypair } from "@stellar/stellar-sdk";
 import { basicNodeSigner } from "@stellar/stellar-sdk/contract";
 import { randomBytes } from "node:crypto";
-import { AgentPassport, derivePublicInputs, type PassportWitness } from "../src/index.js";
+import {
+  AgentPassport,
+  derivePublicInputs,
+  merkleWitnessFromRegistryProof,
+  type PassportWitness,
+} from "../src/index.js";
 
 const B = "../build"; // circuit artifacts from `npm run build` at repo root
 
@@ -23,8 +28,12 @@ async function main() {
   // --- assemble a passport witness (secrets live only here) ---
   const privateKey = rndField();
   const agentId = "42";
-  const pathIndices = "0";
-  const pathElements = Array.from({ length: 20 }, rndField);
+  // Synthetic demo registry proof at a non-zero member position. Production
+  // callers pass the registry's real sibling list + zero-based leaf index.
+  const { pathIndices, pathElements } = merkleWitnessFromRegistryProof({
+    leafIndex: 5n,
+    pathElements: Array.from({ length: 20 }, rndField),
+  });
 
   const artifacts = {
     wasm: `${B}/agent_passport_js/agent_passport.wasm`,
