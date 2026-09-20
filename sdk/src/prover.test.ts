@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { Groth16Proof as SnarkProof } from "snarkjs";
-import { toSorobanProof } from "./prover";
+import {
+  merkleWitnessFromRegistryProof,
+  merkleWitnessFromTreeLevels,
+  toSorobanProof,
+} from "./prover";
 
 const field = (value: number) => value.toString();
 
@@ -45,5 +49,40 @@ describe("toSorobanProof", () => {
     expect(() => toSorobanProof(overflowingProof, [])).toThrow(
       /field element overflow/i,
     );
+  });
+});
+
+
+describe("registry Merkle witnesses", () => {
+  it("encodes a non-zero leaf index with Num2Bits-compatible direction bits", () => {
+    const witness = merkleWitnessFromRegistryProof(
+      {
+        leafIndex: 5n, // binary 101: right, left, right from leaf upward
+        pathElements: ["11", "22", "33"],
+      },
+      3,
+    );
+
+    expect(witness).toEqual({
+      pathElements: ["11", "22", "33"],
+      pathIndices: "5",
+    });
+  });
+
+  it("derives sibling elements from the member's actual tree position", () => {
+    const witness = merkleWitnessFromTreeLevels(
+      [
+        ["100", "101", "102", "103", "104", "105", "106", "107"],
+        ["200", "201", "202", "203"],
+        ["300", "301"],
+      ],
+      5n,
+      3,
+    );
+
+    expect(witness).toEqual({
+      pathElements: ["104", "203", "300"],
+      pathIndices: "5",
+    });
   });
 });
