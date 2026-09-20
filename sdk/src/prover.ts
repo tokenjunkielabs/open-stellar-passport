@@ -39,6 +39,98 @@ export interface PassportWitness extends PublicInputs {
   pathIndices: string;
 }
 
+/** Merkle membership proof returned by an identity registry. */
+export interface RegistryMerkleProof {
+  /** Zero-based leaf position in the registry tree. */
+  leafIndex: bigint | number | string;
+  /** Sibling node at each level, from leaf level upward. */
+  pathElements: readonly (bigint | number | string)[];
+}
+
+const normalizeLeafIndex = (
+  leafIndex: RegistryMerkleProof["leafIndex"],
+  levels: number,
+): bigint => {
+  if (!Number.isInteger(levels) || levels <= 0 || levels > 52) {
+    throw new Error("levels must be an integer between 1 and 52");
+  }
+  if (typeof leafIndex === "number" && !Number.isSafeInteger(leafIndex)) {
+    throw new Error("leafIndex number must be a safe integer");
+  }
+  const index = BigInt(leafIndex);
+  const capacity = 1n << BigInt(levels);
+  if (index < 0n || index >= capacity) {
+    throw new Error(`leafIndex must be in [0, ${capacity})`);
+  }
+  return index;
+};
+
+/**
+ * Convert a registry membership proof into the circuit witness shape.
+ *
+ * MerkleProof uses Num2Bits(levels), so pathIndices is the zero-based leaf
+ * index encoded as one integer; bit 0 selects the leaf-level direction, bit 1
+ * the next level, and so on. A 1 bit means the current node is the right child.
+ */
+export function merkleWitnessFromRegistryProof(
+  proof: RegistryMerkleProof,
+  levels = 20,
+): Pick<PassportWitness, "pathElements" | "pathIndices"> {
+  const leafIndex = normalizeLeafIndex(proof.leafIndex, levels);
+  if (proof.pathElements.length !== levels) {
+    throw new Error(
+      `expected ${levels} Merkle siblings, got ${proof.pathElements.length}`,
+    );
+  }
+  const pathElements = proof.pathElements.map((value, level) => {
+    if (typeof value === "number" && !Number.isSafeInteger(value)) {
+      throw new Error(`pathElements[${level}] number must be a safe integer`);
+    }
+    const field = BigInt(value);
+    if (field < 0n) {
+      throw new Error(`pathElements[${level}] must be non-negative`);
+    }
+    return field.toString();
+  });
+  return { pathElements, pathIndices: leafIndex.toString() };
+}
+
+/**
+ * Derive the sibling path from concrete registry tree levels.
+ *
+ * treeLevels[0] contains leaves, treeLevels[1] their parents, etc. Each row
+ * must include the sibling node selected by leafIndex at that level.
+ */
+export function merkleWitnessFromTreeLevels(
+  treeLevels: readonly (readonly (bigint | number | string)[])[],
+  leafIndex: bigint | number | string,
+  levels = 20,
+): Pick<PassportWitness, "pathElements" | "pathIndices"> {
+  const index = normalizeLeafIndex(leafIndex, levels);
+  if (treeLevels.length < levels) {
+    throw new Error(`expected at least ${levels} tree levels, got ${treeLevels.length}`);
+  }
+
+  let cursor = index;
+  const siblings: (bigint | number | string)[] = [];
+  for (let level = 0; level < levels; level++) {
+    const siblingIndex = Number(cursor ^ 1n);
+    const sibling = treeLevels[level]?.[siblingIndex];
+    if (sibling === undefined) {
+      throw new Error(
+        `missing Merkle sibling at level ${level}, index ${siblingIndex}`,
+      );
+    }
+    siblings.push(sibling);
+    cursor >>= 1n;
+  }
+
+  return merkleWitnessFromRegistryProof(
+    { leafIndex: index, pathElements: siblings },
+    levels,
+  );
+}
+
 /** A proof packaged for the AgentPassportValidator contract. */
 export interface SorobanProof {
   /** Ready for the typed contract client (`Groth16Proof`). */
