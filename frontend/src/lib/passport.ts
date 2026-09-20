@@ -42,6 +42,13 @@ export interface MintedProof extends SorobanProof {
   provingMs: number;
 }
 
+export interface RegistryMerkleProof {
+  /** Zero-based member position; Num2Bits consumes its bits leaf-level first. */
+  leafIndex: bigint | number | string;
+  /** Registry siblings ordered from leaf level upward. */
+  pathElements: readonly (bigint | number | string)[];
+}
+
 export interface OnChainResult {
   ok: boolean;
   attestation?: {
@@ -130,12 +137,27 @@ function client(publicKey = TESTNET_CONFIG.viewerPublicKey) {
  * Generate a brand-new passport: random owner secret + agent id, derive the
  * public root/nullifier via the helper circuit, then prove the full circuit.
  */
-export async function mintPassport(spendCap: string): Promise<MintedProof> {
+export async function mintPassport(
+  spendCap: string,
+  registryProof?: RegistryMerkleProof,
+): Promise<MintedProof> {
   const privateKey = rndField();
   const agentId = rndAgentId();
   const balance = (BigInt(spendCap) + BigInt(rndAgentId())).toString(); // > cap, hidden
-  const pathIndices = "0";
-  const pathElements = Array.from({ length: 20 }, rndField);
+  const levels = 20;
+  const maxLeaves = 1n << BigInt(levels);
+  const leafIndex = registryProof
+    ? BigInt(registryProof.leafIndex)
+    : (BigInt(rndAgentId()) % (maxLeaves - 1n)) + 1n;
+  if (leafIndex < 0n || leafIndex >= maxLeaves) {
+    throw new Error(`registry leaf index must be in [0, ${maxLeaves})`);
+  }
+  const pathElements = (registryProof?.pathElements ??
+    Array.from({ length: levels }, rndField)).map(String);
+  if (pathElements.length !== levels) {
+    throw new Error(`expected ${levels} Merkle siblings, got ${pathElements.length}`);
+  }
+  const pathIndices = leafIndex.toString();
 
   const witnessWasm = await fetchBytes(ART.witness);
   const o = { type: "mem" } as object;
