@@ -20,7 +20,9 @@ async function main() {
   const agentId = "42"; // pretend Stellar-8004 agent id
   const balance = "1000000000"; // hidden real balance
   const spendCap = "500000000"; // passport vouches for <= this; balance >= it
-  const pathIndices = "0"; // all-left path (fine for a smoke test)
+  // Exercise a real non-zero position: 5 = 0b101, consumed LSB-first by Num2Bits.
+  const leafIndex = 5n;
+  const pathIndices = leafIndex.toString();
   const pathElements = Array.from({ length: 20 }, () => rnd().toString());
 
   // 1. Use the helper circuit to compute the matching registryRoot + nullifierHash.
